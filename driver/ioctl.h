@@ -83,6 +83,14 @@ typedef enum
     WG_IOCTL_ADAPTER_STATE_QUERY = 2
 } WG_IOCTL_ADAPTER_STATE;
 
+#define WG_MAX_PROGRAM_NAME_LEN 260
+
+typedef __declspec(align(8)) struct _WG_IOCTL_PROGRAM_FILTER
+{
+    WCHAR ProgramName[WG_MAX_PROGRAM_NAME_LEN];
+    BOOLEAN Allow; /* TRUE to allow, FALSE to block */
+} WG_IOCTL_PROGRAM_FILTER;
+
 typedef __declspec(align(8)) struct _WG_IOCTL_LOG_ENTRY
 {
     ULONG64 Timestamp;
@@ -110,6 +118,9 @@ typedef __declspec(align(8)) struct _WG_IOCTL_LOG_ENTRY
 
 /* Read the next line in the adapter log. */
 #define WG_IOCTL_READ_LOG_LINE CTL_CODE(45208U, 324, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+/* Set program name filter for data forwarding. */
+#define WG_IOCTL_SET_PROGRAM_FILTER CTL_CODE(45208U, 325, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
 #ifdef _KERNEL_MODE
 

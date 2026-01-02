@@ -65,6 +65,13 @@ typedef struct _PEER_SERIAL
     KSPIN_LOCK Lock;
 } PEER_SERIAL;
 
+typedef struct _PROGRAM_FILTER_ENTRY
+{
+    LIST_ENTRY ListEntry;
+    WCHAR ProgramName[260];
+    BOOLEAN Allow;
+} PROGRAM_FILTER_ENTRY;
+
 typedef struct _WG_DEVICE
 {
     NDIS_HANDLE MiniportAdapterHandle; /* This is actually a pointer to NDIS_MINIPORT_BLOCK struct. */
@@ -94,6 +101,9 @@ typedef struct _WG_DEVICE
     LOG_RING Log;
     LIST_ENTRY DeviceList;
     KEVENT DeviceRemoved;
+    LIST_ENTRY ProgramFilterList;
+    EX_PUSH_LOCK ProgramFilterLock;
+    BOOLEAN ProgramFilterEnabled;
 } WG_DEVICE;
 
 _Requires_lock_held_(Wg->DeviceUpdateLock)

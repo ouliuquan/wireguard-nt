@@ -398,6 +398,15 @@ HaltEx(NDIS_HANDLE MiniportAdapterContext, NDIS_HALT_ACTION HaltAction)
     PtrRingFree(&Wg->HandshakeRxQueue);
     MemFree(Wg->IndexHashtable);
     MemFree(Wg->PeerHashtable);
+    
+    /* Clean up program filter list */
+    while (!IsListEmpty(&Wg->ProgramFilterList))
+    {
+        LIST_ENTRY *Entry = RemoveHeadList(&Wg->ProgramFilterList);
+        PROGRAM_FILTER_ENTRY *FilterEntry = CONTAINING_RECORD(Entry, PROGRAM_FILTER_ENTRY, ListEntry);
+        MemFree(FilterEntry);
+    }
+    
     MuReleasePushLockExclusive(&Wg->DeviceUpdateLock);
 
     WritePointerNoFence(&Wg->MiniportAdapterHandle, NULL);
@@ -579,6 +588,9 @@ InitializeEx(
     AllowedIpsInit(&Wg->PeerAllowedIps);
     CookieCheckerInit(&Wg->CookieChecker, Wg);
     InitializeListHead(&Wg->PeerList);
+    InitializeListHead(&Wg->ProgramFilterList);
+    MuInitializePushLock(&Wg->ProgramFilterLock);
+    Wg->ProgramFilterEnabled = FALSE;
 
     Status = STATUS_INSUFFICIENT_RESOURCES;
 
