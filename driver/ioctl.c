@@ -10,6 +10,7 @@
 #include "socket.h"
 #include "timers.h"
 #include "logging.h"
+#include "memory.h"
 #include <ntddk.h>
 
 #define SIZE_OF_EMBEDDED(A, B) \
@@ -585,6 +586,50 @@ ReadLogLine(_In_ DEVICE_OBJECT *DeviceObject, _Inout_ IRP *Irp)
         Irp->IoStatus.Information = sizeof(WG_IOCTL_LOG_ENTRY);
 }
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
+static VOID
+SetProgramFilter(_In_ DEVICE_OBJECT *DeviceObject, _Inout_ IRP *Irp)
+{
+    Irp->IoStatus.Information = 0;
+    if (!HasAccess(FILE_WRITE_DATA, Irp->RequestorMode, &Irp->IoStatus.Status))
+        return;
+
+    IO_STACK_LOCATION *Stack = IoGetCurrentIrpStackLocation(Irp);
+    if (Stack->Parameters.DeviceIoControl.InputBufferLength != sizeof(WG_IOCTL_PROGRAM_FILTER))
+    {
+        Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+        return;
+    }
+
+    WG_IOCTL_PROGRAM_FILTER Filter;
+    RtlCopyMemory(&Filter, Irp->AssociatedIrp.SystemBuffer, sizeof(Filter));
+
+    WG_DEVICE *Wg = DeviceObject->Reserved;
+    if (!Wg || ReadBooleanNoFence(&Wg->IsDeviceRemoving))
+    {
+        Irp->IoStatus.Status = NDIS_STATUS_ADAPTER_REMOVED;
+        return;
+    }
+
+    /* Allocate new filter entry */
+    PROGRAM_FILTER_ENTRY *NewEntry = MemAllocate(sizeof(PROGRAM_FILTER_ENTRY));
+    if (!NewEntry)
+    {
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        return;
+    }
+
+    RtlCopyMemory(NewEntry->ProgramName, Filter.ProgramName, sizeof(Filter.ProgramName));
+    NewEntry->Allow = Filter.Allow;
+
+    MuAcquirePushLockExclusive(&Wg->ProgramFilterLock);
+    InsertTailList(&Wg->ProgramFilterList, &NewEntry->ListEntry);
+    Wg->ProgramFilterEnabled = TRUE;
+    MuReleasePushLockExclusive(&Wg->ProgramFilterLock);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+}
+
 _Dispatch_type_(IRP_MJ_DEVICE_CONTROL)
 static DRIVER_DISPATCH_PAGED DispatchDeviceControl;
 _Use_decl_annotations_
@@ -605,6 +650,9 @@ DispatchDeviceControl(DEVICE_OBJECT *DeviceObject, IRP *Irp)
         break;
     case WG_IOCTL_READ_LOG_LINE:
         ReadLogLine(DeviceObject, Irp);
+        break;
+    case WG_IOCTL_SET_PROGRAM_FILTER:
+        SetProgramFilter(DeviceObject, Irp);
         break;
     default:
         return NdisDispatchDeviceControl(DeviceObject, Irp);

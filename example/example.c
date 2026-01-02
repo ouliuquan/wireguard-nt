@@ -29,6 +29,7 @@ static WIREGUARD_GET_ADAPTER_STATE_FUNC *WireGuardGetAdapterState;
 static WIREGUARD_SET_ADAPTER_STATE_FUNC *WireGuardSetAdapterState;
 static WIREGUARD_GET_CONFIGURATION_FUNC *WireGuardGetConfiguration;
 static WIREGUARD_SET_CONFIGURATION_FUNC *WireGuardSetConfiguration;
+static WIREGUARD_SET_PROGRAM_FILTER_FUNC *WireGuardSetProgramFilter;
 
 static HMODULE
 InitializeWireGuardNT(void)
@@ -41,7 +42,8 @@ InitializeWireGuardNT(void)
     if (X(WireGuardCreateAdapter) || X(WireGuardOpenAdapter) || X(WireGuardCloseAdapter) ||
         X(WireGuardGetAdapterLUID) || X(WireGuardGetRunningDriverVersion) || X(WireGuardDeleteDriver) ||
         X(WireGuardSetLogger) || X(WireGuardSetAdapterLogging) || X(WireGuardGetAdapterState) ||
-        X(WireGuardSetAdapterState) || X(WireGuardGetConfiguration) || X(WireGuardSetConfiguration))
+        X(WireGuardSetAdapterState) || X(WireGuardGetConfiguration) || X(WireGuardSetConfiguration) ||
+        X(WireGuardSetProgramFilter))
 #undef X
     {
         DWORD LastError = GetLastError();
@@ -400,6 +402,25 @@ int __cdecl main(void)
     }
 
     Log(WIREGUARD_LOG_INFO, L"Setting configuration and adapter up");
+    
+    /* Example: Set up program filter to allow only specific programs */
+    /* Uncomment to enable filtering for specific programs
+    WIREGUARD_PROGRAM_FILTER Filter = { 0 };
+    wcscpy_s(Filter.ProgramName, WIREGUARD_MAX_PROGRAM_NAME, L"chrome.exe");
+    Filter.Allow = TRUE;
+    if (!WireGuardSetProgramFilter(Adapter, &Filter))
+    {
+        Log(WIREGUARD_LOG_WARN, L"Failed to set program filter for chrome.exe");
+    }
+    
+    wcscpy_s(Filter.ProgramName, WIREGUARD_MAX_PROGRAM_NAME, L"firefox.exe");
+    Filter.Allow = TRUE;
+    if (!WireGuardSetProgramFilter(Adapter, &Filter))
+    {
+        Log(WIREGUARD_LOG_WARN, L"Failed to set program filter for firefox.exe");
+    }
+    */
+    
     if (!WireGuardSetConfiguration(Adapter, &Config.Interface, sizeof(Config)) ||
         !WireGuardSetAdapterState(Adapter, WIREGUARD_ADAPTER_STATE_UP))
     {

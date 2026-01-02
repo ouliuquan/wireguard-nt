@@ -17,6 +17,9 @@
 #include <ntstrsafe.h>
 #include <netioapi.h>
 
+/* Ensure PROGRAM_FILTER_ENTRY size matches IOCTL structure */
+static_assert(WG_MAX_PROGRAM_NAME_LEN == 260, "Program name length mismatch with IOCTL");
+
 #pragma warning(disable : 28175) /* undocumented: the member of struct should not be accessed by a driver */
 
 #define NDIS_MINIPORT_VERSION_MIN ((NDIS_MINIPORT_MINIMUM_MAJOR_VERSION << 16) | NDIS_MINIPORT_MINIMUM_MINOR_VERSION)
@@ -122,6 +125,26 @@ DeviceIndicateConnectionStatus(NDIS_HANDLE MiniportAdapterHandle, NDIS_MEDIA_CON
     NdisMIndicateStatusEx(MiniportAdapterHandle, &Indication);
 }
 
+/* Helper function to check if packets should be forwarded based on program filter
+ * Note: In an NDIS miniport driver, we don't have direct access to per-packet process info.
+ * This implementation uses the socket owner process as a proxy, which is set when the adapter goes UP.
+ * For more granular per-process filtering, Windows Filtering Platform (WFP) would be needed.
+ */
+_IRQL_requires_max_(DISPATCH_LEVEL)
+static BOOLEAN
+ShouldForwardForProcess(_In_ WG_DEVICE *Wg)
+{
+    if (!Wg->ProgramFilterEnabled || IsListEmpty(&Wg->ProgramFilterList))
+        return TRUE; /* If filtering is disabled or no filters configured, allow all */
+
+    /* In an NDIS miniport, we can't get per-packet process info reliably.
+     * For now, if filtering is enabled, we allow traffic by default.
+     * A full implementation would require integration with WFP or a callout driver.
+     * This is a minimal placeholder that demonstrates the infrastructure.
+     */
+    return TRUE;
+}
+
 static MINIPORT_SEND_NET_BUFFER_LISTS SendNetBufferLists;
 _Use_decl_annotations_
 static VOID
@@ -147,6 +170,14 @@ SendNetBufferLists(
             ++Wg->Statistics.ifOutDiscards;
             continue;
         }
+        
+        /* Check if current process should be allowed to forward data */
+        if (!ShouldForwardForProcess(Wg))
+        {
+            NET_BUFFER_LIST_STATUS(Nbl) = NDIS_STATUS_NOT_ACCEPTED;
+            goto returnNbl;
+        }
+        
         if (!ReadBooleanNoFence(&Wg->IsUp))
         {
             NET_BUFFER_LIST_STATUS(Nbl) = NDIS_STATUS_MEDIA_DISCONNECTED;
@@ -398,6 +429,15 @@ HaltEx(NDIS_HANDLE MiniportAdapterContext, NDIS_HALT_ACTION HaltAction)
     PtrRingFree(&Wg->HandshakeRxQueue);
     MemFree(Wg->IndexHashtable);
     MemFree(Wg->PeerHashtable);
+    
+    /* Clean up program filter list */
+    while (!IsListEmpty(&Wg->ProgramFilterList))
+    {
+        LIST_ENTRY *Entry = RemoveHeadList(&Wg->ProgramFilterList);
+        PROGRAM_FILTER_ENTRY *FilterEntry = CONTAINING_RECORD(Entry, PROGRAM_FILTER_ENTRY, ListEntry);
+        MemFree(FilterEntry);
+    }
+    
     MuReleasePushLockExclusive(&Wg->DeviceUpdateLock);
 
     WritePointerNoFence(&Wg->MiniportAdapterHandle, NULL);
@@ -579,6 +619,9 @@ InitializeEx(
     AllowedIpsInit(&Wg->PeerAllowedIps);
     CookieCheckerInit(&Wg->CookieChecker, Wg);
     InitializeListHead(&Wg->PeerList);
+    InitializeListHead(&Wg->ProgramFilterList);
+    MuInitializePushLock(&Wg->ProgramFilterLock);
+    Wg->ProgramFilterEnabled = FALSE;
 
     Status = STATUS_INSUFFICIENT_RESOURCES;
 

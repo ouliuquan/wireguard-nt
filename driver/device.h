@@ -15,6 +15,8 @@
 #include <ntifs.h> /* Must be included before <wdm.h> */
 #include <wdm.h>
 
+#define WG_MAX_PROGRAM_NAME_LEN 260
+
 typedef struct _PREV_QUEUE
 {
     NET_BUFFER_LIST *Head, *Tail, *Peeked;
@@ -65,6 +67,13 @@ typedef struct _PEER_SERIAL
     KSPIN_LOCK Lock;
 } PEER_SERIAL;
 
+typedef struct _PROGRAM_FILTER_ENTRY
+{
+    LIST_ENTRY ListEntry;
+    WCHAR ProgramName[WG_MAX_PROGRAM_NAME_LEN];
+    BOOLEAN Allow;
+} PROGRAM_FILTER_ENTRY;
+
 typedef struct _WG_DEVICE
 {
     NDIS_HANDLE MiniportAdapterHandle; /* This is actually a pointer to NDIS_MINIPORT_BLOCK struct. */
@@ -94,6 +103,9 @@ typedef struct _WG_DEVICE
     LOG_RING Log;
     LIST_ENTRY DeviceList;
     KEVENT DeviceRemoved;
+    LIST_ENTRY ProgramFilterList;
+    EX_PUSH_LOCK ProgramFilterLock;
+    BOOLEAN ProgramFilterEnabled;
 } WG_DEVICE;
 
 _Requires_lock_held_(Wg->DeviceUpdateLock)
