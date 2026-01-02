@@ -15,6 +15,8 @@
 #include <ntifs.h> /* Must be included before <wdm.h> */
 #include <wdm.h>
 
+#define WG_MAX_PROGRAM_NAME_LEN 260
+
 typedef struct _PREV_QUEUE
 {
     NET_BUFFER_LIST *Head, *Tail, *Peeked;
@@ -68,7 +70,7 @@ typedef struct _PEER_SERIAL
 typedef struct _PROGRAM_FILTER_ENTRY
 {
     LIST_ENTRY ListEntry;
-    WCHAR ProgramName[260];
+    WCHAR ProgramName[WG_MAX_PROGRAM_NAME_LEN];
     BOOLEAN Allow;
 } PROGRAM_FILTER_ENTRY;
 

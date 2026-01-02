@@ -226,10 +226,6 @@ WireGuardSetConfiguration(WIREGUARD_ADAPTER *Adapter, const WIREGUARD_INTERFACE 
     return TRUE;
 }
 
-    CloseHandle(ControlFile);
-    return TRUE;
-}
-
 static_assert(sizeof(WG_IOCTL_PROGRAM_FILTER) == sizeof(WIREGUARD_PROGRAM_FILTER), "Program filter struct mismatch");
 
 WIREGUARD_SET_PROGRAM_FILTER_FUNC WireGuardSetProgramFilter;

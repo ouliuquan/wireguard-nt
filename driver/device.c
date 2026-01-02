@@ -17,6 +17,9 @@
 #include <ntstrsafe.h>
 #include <netioapi.h>
 
+/* Ensure PROGRAM_FILTER_ENTRY size matches IOCTL structure */
+static_assert(WG_MAX_PROGRAM_NAME_LEN == 260, "Program name length mismatch with IOCTL");
+
 #pragma warning(disable : 28175) /* undocumented: the member of struct should not be accessed by a driver */
 
 #define NDIS_MINIPORT_VERSION_MIN ((NDIS_MINIPORT_MINIMUM_MAJOR_VERSION << 16) | NDIS_MINIPORT_MINIMUM_MINOR_VERSION)
