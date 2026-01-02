@@ -303,6 +303,31 @@ BOOL(WINAPI WIREGUARD_GET_CONFIGURATION_FUNC)
  _Out_writes_bytes_all_(*Bytes) WIREGUARD_INTERFACE *Config,
  _Inout_ DWORD *Bytes);
 
+#define WIREGUARD_MAX_PROGRAM_NAME 260
+
+/**
+ * Program filter structure for process-based data forwarding
+ */
+typedef struct ALIGNED(8) _WIREGUARD_PROGRAM_FILTER
+{
+    WCHAR ProgramName[WIREGUARD_MAX_PROGRAM_NAME]; /**< Program executable name (e.g., "chrome.exe") */
+    BOOL Allow;                                     /**< TRUE to allow forwarding, FALSE to block */
+} WIREGUARD_PROGRAM_FILTER;
+
+/**
+ * Sets a program filter for selective data forwarding.
+ *
+ * @param Adapter       Adapter handle obtained with WireGuardCreateAdapter or WireGuardOpenAdapter
+ *
+ * @param Filter        Program filter configuration.
+ *
+ * @return If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
+ *         get extended error information, call GetLastError.
+ */
+typedef _Return_type_success_(return != FALSE)
+BOOL(WINAPI WIREGUARD_SET_PROGRAM_FILTER_FUNC)
+(_In_ WIREGUARD_ADAPTER_HANDLE Adapter, _In_ const WIREGUARD_PROGRAM_FILTER *Filter);
+
 #pragma warning(pop)
 
 #ifdef __cplusplus

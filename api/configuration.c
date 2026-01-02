@@ -226,15 +226,30 @@ WireGuardSetConfiguration(WIREGUARD_ADAPTER *Adapter, const WIREGUARD_INTERFACE 
     return TRUE;
 }
 
-WIREGUARD_GET_CONFIGURATION_FUNC WireGuardGetConfiguration;
+    CloseHandle(ControlFile);
+    return TRUE;
+}
+
+static_assert(sizeof(WG_IOCTL_PROGRAM_FILTER) == sizeof(WIREGUARD_PROGRAM_FILTER), "Program filter struct mismatch");
+
+WIREGUARD_SET_PROGRAM_FILTER_FUNC WireGuardSetProgramFilter;
 _Use_decl_annotations_
 BOOL WINAPI
-WireGuardGetConfiguration(WIREGUARD_ADAPTER *Adapter, WIREGUARD_INTERFACE *Config, DWORD *Bytes)
+WireGuardSetProgramFilter(WIREGUARD_ADAPTER *Adapter, const WIREGUARD_PROGRAM_FILTER *Filter)
 {
+    if (!Filter)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    
     HANDLE ControlFile = AdapterOpenDeviceObject(Adapter);
     if (ControlFile == INVALID_HANDLE_VALUE)
         return FALSE;
-    if (!DeviceIoControl(ControlFile, WG_IOCTL_GET, NULL, 0, Config, *Bytes, Bytes, NULL))
+    
+    DWORD BytesReturned;
+    if (!DeviceIoControl(
+            ControlFile, WG_IOCTL_SET_PROGRAM_FILTER, (VOID *)Filter, sizeof(*Filter), NULL, 0, &BytesReturned, NULL))
     {
         DWORD LastError = GetLastError();
         CloseHandle(ControlFile);

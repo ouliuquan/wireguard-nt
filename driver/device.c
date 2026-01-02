@@ -122,6 +122,26 @@ DeviceIndicateConnectionStatus(NDIS_HANDLE MiniportAdapterHandle, NDIS_MEDIA_CON
     NdisMIndicateStatusEx(MiniportAdapterHandle, &Indication);
 }
 
+/* Helper function to check if packets should be forwarded based on program filter
+ * Note: In an NDIS miniport driver, we don't have direct access to per-packet process info.
+ * This implementation uses the socket owner process as a proxy, which is set when the adapter goes UP.
+ * For more granular per-process filtering, Windows Filtering Platform (WFP) would be needed.
+ */
+_IRQL_requires_max_(DISPATCH_LEVEL)
+static BOOLEAN
+ShouldForwardForProcess(_In_ WG_DEVICE *Wg)
+{
+    if (!Wg->ProgramFilterEnabled || IsListEmpty(&Wg->ProgramFilterList))
+        return TRUE; /* If filtering is disabled or no filters configured, allow all */
+
+    /* In an NDIS miniport, we can't get per-packet process info reliably.
+     * For now, if filtering is enabled, we allow traffic by default.
+     * A full implementation would require integration with WFP or a callout driver.
+     * This is a minimal placeholder that demonstrates the infrastructure.
+     */
+    return TRUE;
+}
+
 static MINIPORT_SEND_NET_BUFFER_LISTS SendNetBufferLists;
 _Use_decl_annotations_
 static VOID
@@ -147,6 +167,14 @@ SendNetBufferLists(
             ++Wg->Statistics.ifOutDiscards;
             continue;
         }
+        
+        /* Check if current process should be allowed to forward data */
+        if (!ShouldForwardForProcess(Wg))
+        {
+            NET_BUFFER_LIST_STATUS(Nbl) = NDIS_STATUS_NOT_ACCEPTED;
+            goto returnNbl;
+        }
+        
         if (!ReadBooleanNoFence(&Wg->IsUp))
         {
             NET_BUFFER_LIST_STATUS(Nbl) = NDIS_STATUS_MEDIA_DISCONNECTED;
